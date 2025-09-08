@@ -27,7 +27,21 @@ async def find_resorts_geoapify(city: str = None, lat: float = None, lon: float 
         return {"error": "missing_geoapify_key"}
 
     if city and (lat is None or lon is None):
-        g = await _geocode(city)
+        # Handle country searches by using major cities instead
+        country_cities = {
+            "canada": "Whistler",
+            "usa": "Lake Tahoe",
+            "united states": "Lake Tahoe",
+            "america": "Lake Tahoe",
+            "france": "Chamonix",
+            "switzerland": "Zermatt",
+            "italy": "Cortina d'Ampezzo",
+            "austria": "Innsbruck"
+        }
+
+        search_city = country_cities.get(city.lower(), city)
+
+        g = await _geocode(search_city)
         if not g:
             return {"error": "could_not_geocode", "city": city}
         lat, lon, label = g
@@ -38,6 +52,7 @@ async def find_resorts_geoapify(city: str = None, lat: float = None, lon: float 
         async with httpx.AsyncClient() as client:
             r = await client.get("https://api.geoapify.com/v2/places",
                 params={
+                    "categories": "activity",
                     "text": "ski",
                     "filter": f"circle:{lon},{lat},{int(radius_km*1000)}",
                     "limit": limit,

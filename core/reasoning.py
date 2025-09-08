@@ -27,7 +27,7 @@ License: MIT
 
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Type, TypeVar, Optional, Dict, Any, List
 
 import openai
@@ -323,6 +323,18 @@ async def _execute_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
                 start_date = date.fromisoformat(start_date_str)
                 end_date = date.fromisoformat(end_date_str)
 
+                # Validate dates are not in the past
+                today = date.today()
+                if start_date < today:
+                    # If dates are in the past, use next week instead
+                    start_date = today
+                    end_date = today + timedelta(days=6)  # Next 7 days
+                    logger.info(f"Dates were in past, adjusted to: {start_date} to {end_date}")
+
+                # Ensure end_date is not before start_date
+                if end_date < start_date:
+                    end_date = start_date + timedelta(days=6)
+
                 # Geocode the city to get coordinates
                 coords = await _geocode(city)
                 if not coords:
@@ -353,7 +365,8 @@ async def _execute_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
                         "days": len(forecast_data)
                     }
                 else:
-                    return {"error": f"No weather data available for {city}"}
+                    logger.warning(f"No weather data available for {city}")
+                    return {"error": f"No weather data available for {city}", "location": city}
 
             except ValueError as e:
                 return {"error": f"Invalid date format: {e}"}
