@@ -1,0 +1,73 @@
+{
+  "region": "Lake Tahoe",
+  "start_date": "2025-12-20",
+  "end_date": "2025-12-22",
+  "ability": "intermediate",
+  "days": [
+    {
+      "date": "2025-12-20",
+      "morning": {
+        "time": "9:00 AM",
+        "activity": "Skiing",
+        "description": "Morning skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      },
+      "lunch": {
+        "time": "12:00 PM",
+        "activity": "Lunch",
+        "description": "Lunch at Ski Resort in Lake Tahoe lodge",
+        "source_id": "assistant"
+      },
+      "afternoon": {
+        "time": "2:00 PM",
+        "activity": "Skiing",
+        "description": "Afternoon skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      }
+    },
+    {
+      "date": "2025-12-21",
+      "morning": {
+        "time": "9:00 AM",
+        "activity": "Skiing",
+        "description": "Morning skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      },
+      "lunch": {
+        "time": "12:00 PM",
+        "activity": "Lunch",
+        "description": "Lunch at Ski Resort in Lake Tahoe lodge",
+        "source_id": "assistant"
+      },
+      "afternoon": {
+        "time": "2:00 PM",
+        "activity": "Skiing",
+        "description": "Afternoon skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      }
+    },
+    {
+      "date": "2025-12-22",
+      "morning": {
+        "time": "9:00 AM",
+        "activity": "Skiing",
+        "description": "Morning skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      },
+      "lunch": {
+        "time": "12:00 PM",
+        "activity": "Lunch",
+        "description": "Lunch at Ski Resort in Lake Tahoe lodge",
+        "source_id": "assistant"
+      },
+      "afternoon": {
+        "time": "2:00 PM",
+        "activity": "Skiing",
+        "description": "Afternoon skiing at Ski Resort in Lake Tahoe",
+        "source_id": "assistant"
+      }
+    }
+  ],
+  "created_at": "2025-09-08T17:45:37.086675",
+  "source_id": "assistant"
+}
