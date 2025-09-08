@@ -33,10 +33,10 @@ SkiTrip Assistant is an intelligent conversational CLI tool that helps users dis
 
 ### 🎯 Assignment Compliance
 - ✅ **Conversational Quality**: Natural language processing with GPT-4
-- ✅ **External API Integration**: Geoapify Places API for resort data
+- ✅ **External API Integration**: **2 APIs** - Geoapify (resorts) + Open-Meteo (weather)
 - ✅ **Tool Calling**: OpenAI function calling for structured interactions
 - ✅ **Hallucination Management**: Source attribution and validation
-- ✅ **Real Data**: No invented resort information
+- ✅ **Real Data**: Live data from both APIs, no invented information
 
 ## 🏁 Quick Start
 

@@ -27,6 +27,7 @@ License: MIT
 
 import json
 import logging
+from datetime import date
 from typing import Type, TypeVar, Optional, Dict, Any, List
 
 import openai
@@ -132,6 +133,33 @@ async def llm_with_tools(user_message: str, conversation_history: Optional[List[
                     "required": ["city"]
                 }
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather_forecast",
+                "description": "Get weather forecast for a specific location using Open-Meteo API.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "city": {
+                            "type": "string",
+                            "description": "Name of city or location to get weather for"
+                        },
+                        "start_date": {
+                            "type": "string",
+                            "description": "Start date for forecast in YYYY-MM-DD format",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "end_date": {
+                            "type": "string",
+                            "description": "End date for forecast in YYYY-MM-DD format",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        }
+                    },
+                    "required": ["city", "start_date", "end_date"]
+                }
+            }
         }
     ]
 
@@ -143,9 +171,11 @@ async def llm_with_tools(user_message: str, conversation_history: Optional[List[
 
 TOOL USAGE RULES:
 - ALWAYS call find_resorts_geoapify when users ask about ski resorts, skiing, winter sports, or alpine activities
-- Use the tool immediately when ANY location is mentioned (cities, countries, regions, mountains)
-- Do NOT ask for clarification - use the tool right away with the location provided
-- If no location is specified, ask the user to provide one
+- ALWAYS call get_weather_forecast when users ask about weather, snow conditions, temperature, or forecasts
+- Use the tools immediately when ANY location is mentioned (cities, countries, regions, mountains)
+- Do NOT ask for clarification - use the appropriate tool right away with the location provided
+- If no location specified, ask for one, then use the tool
+- For weather requests, also ask for date range if not specified
 
 RESPONSE GUIDELINES:
 - After tool calls: Summarize results naturally in 2-4 bullet points
@@ -274,6 +304,62 @@ async def _execute_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
                 logger.info(f"Added fallback information for {city}")
 
             return result
+
+        elif tool_name == "get_weather_forecast":
+            # Import the weather API module
+            from apis.weather_openmeteo import get_forecast
+            from apis.geoapify_resorts import _geocode
+
+            # Parse the arguments
+            city = tool_args.get("city")
+            start_date_str = tool_args.get("start_date")
+            end_date_str = tool_args.get("end_date")
+
+            if not city or not start_date_str or not end_date_str:
+                return {"error": "Missing required parameters: city, start_date, end_date"}
+
+            try:
+                # Parse dates
+                start_date = date.fromisoformat(start_date_str)
+                end_date = date.fromisoformat(end_date_str)
+
+                # Geocode the city to get coordinates
+                coords = await _geocode(city)
+                if not coords:
+                    return {"error": f"Could not find coordinates for city: {city}"}
+
+                lat, lon, location_name = coords
+
+                # Get weather forecast
+                forecast = await get_forecast(lat, lon, start_date, end_date)
+
+                if forecast:
+                    logger.info(f"Weather forecast retrieved for {location_name} ({len(forecast)} days)")
+                    # Convert forecast objects to dictionaries for JSON serialization
+                    forecast_data = []
+                    for day_forecast in forecast:
+                        forecast_data.append({
+                            "date": day_forecast.date.isoformat(),
+                            "temperature_max": day_forecast.temperature_2m_max,
+                            "temperature_min": day_forecast.temperature_2m_min,
+                            "precipitation": day_forecast.precipitation_sum,
+                            "snowfall": day_forecast.snowfall_sum,
+                            "wind_speed": day_forecast.wind_speed_10m_max
+                        })
+
+                    return {
+                        "location": location_name,
+                        "forecast": forecast_data,
+                        "days": len(forecast_data)
+                    }
+                else:
+                    return {"error": f"No weather data available for {city}"}
+
+            except ValueError as e:
+                return {"error": f"Invalid date format: {e}"}
+            except Exception as e:
+                logger.error(f"Weather API error: {e}")
+                return {"error": f"Weather service unavailable: {str(e)}"}
 
         else:
             # Unknown tool requested
