@@ -1,87 +1,177 @@
-"""LLM reasoning and JSON validation for SkiTrip Assistant."""
+"""
+SkiTrip Assistant - LLM Reasoning and Tool Integration
+
+This module handles the core intelligence of the SkiTrip Assistant by:
+- Integrating with OpenAI's GPT models using function/tool calling
+- Processing user queries about ski trips and resorts
+- Coordinating with external APIs (Geoapify) to fetch real data
+- Providing intelligent fallback responses when APIs are unavailable
+- Maintaining conversation context and history
+
+The system uses OpenAI's tool calling feature to enable the LLM to:
+1. Understand when users ask about ski resorts/locations
+2. Call the appropriate tools (find_resorts_geoapify) with correct parameters
+3. Process API responses and provide natural language summaries
+4. Fall back to expert knowledge when APIs don't return results
+
+Key Features:
+- Tool-based LLM integration with OpenAI
+- Real-time resort data from Geoapify API
+- Intelligent fallback responses with ski destination knowledge
+- Conversation context management
+- Error handling and graceful degradation
+
+Author: SkiTrip Assistant Team
+License: MIT
+"""
 
 import json
 import logging
-from typing import Type, TypeVar, Optional, Dict, Any
-from pydantic import BaseModel, ValidationError
-import openai
-from config.settings import OPENAI_API_KEY, OPENAI_MODEL, LLM_TEMPERATURE, LLM_MAX_RETRIES, USE_REAL_OPENAI
+from typing import Type, TypeVar, Optional, Dict, Any, List
 
+import openai
+from pydantic import BaseModel
+
+from config.settings import (
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+    LLM_TEMPERATURE,
+    LLM_MAX_RETRIES,
+    USE_REAL_OPENAI
+)
+
+# Configure logging
 logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
+# Type variable for generic Pydantic models
 T = TypeVar('T', bound=BaseModel)
 
 async def llm_json(prompt: str, schema: Type[T], *, temperature: float = LLM_TEMPERATURE, max_retries: int = LLM_MAX_RETRIES) -> T:
-    """Legacy function for backward compatibility - use llm_with_tools instead."""
-    # For backward compatibility, return fake data
-    return _get_fake_response(schema)
+    """
+    Legacy function for backward compatibility.
 
-async def llm_with_tools(user_message: str, conversation_history: list = None) -> str:
-    """Call LLM with tool calling capabilities for ski trip planning.
+    This function is kept for compatibility with older code that expects
+    JSON schema validation. New code should use llm_with_tools() instead.
 
     Args:
-        user_message: The user's message
-        conversation_history: Previous conversation history
+        prompt: The prompt to send to the LLM
+        schema: Pydantic schema for response validation
+        temperature: Sampling temperature for response generation
+        max_retries: Maximum number of API retry attempts
 
     Returns:
-        Natural language response from LLM
+        Validated Pydantic model instance
+    """
+    logger.warning("Using deprecated llm_json() function - consider using llm_with_tools() instead")
+    return _get_fake_response(schema)
+
+
+async def llm_with_tools(user_message: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> str:
+    """
+    Main LLM interface with tool calling capabilities for ski trip planning.
+
+    This function integrates with OpenAI's tool calling feature to enable the LLM
+    to interact with external APIs (Geoapify) to fetch real ski resort data.
+    When users ask about ski resorts, the LLM can call the find_resorts_geoapify
+    tool to get actual data instead of making assumptions.
+
+    Args:
+        user_message: The current user message/query
+        conversation_history: List of previous conversation exchanges for context
+
+    Returns:
+        Natural language response from the LLM, potentially including tool results
+
+    Raises:
+        Exception: If LLM API call fails after retries
     """
     if not USE_REAL_OPENAI:
         logger.info("Using fake LLM response (USE_REAL_OPENAI=False)")
         return _get_fake_conversation_response(user_message)
 
-    # Define available tools
+    # Define available tools for the LLM
     tools = [
         {
             "type": "function",
             "function": {
                 "name": "find_resorts_geoapify",
-                "description": "Find ski resorts near a location.",
+                "description": "Search for ski resorts and winter sports facilities near a location using Geoapify API.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "city": {"type": "string", "description": "City or area name. If not given, use lat/lon."},
-                        "lat": {"type": "number", "description": "Latitude if already known."},
-                        "lon": {"type": "number", "description": "Longitude if already known."},
-                        "radius_km": {"type": "number", "minimum": 5, "maximum": 100, "default": 30},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 8}
-                    }
+                        "city": {
+                            "type": "string",
+                            "description": "Name of city, town, or region to search for ski resorts"
+                        },
+                        "lat": {
+                            "type": "number",
+                            "description": "Latitude coordinate (optional, will be geocoded from city if not provided)"
+                        },
+                        "lon": {
+                            "type": "number",
+                            "description": "Longitude coordinate (optional, will be geocoded from city if not provided)"
+                        },
+                        "radius_km": {
+                            "type": "integer",
+                            "description": "Search radius in kilometers",
+                            "minimum": 5,
+                            "maximum": 100,
+                            "default": 50
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return",
+                            "minimum": 1,
+                            "maximum": 20,
+                            "default": 8
+                        }
+                    },
+                    "required": ["city"]
                 }
             }
         }
     ]
 
-    # Build conversation messages
+    # Build conversation messages with system prompt
     messages = [
         {
             "role": "system",
-            "content": """You are Ski Planner. You MUST use tools to fetch real data for ski-related queries.
+            "content": """You are SkiTrip Assistant, an expert ski vacation planner. You help users find ski resorts and plan amazing ski trips.
 
 TOOL USAGE RULES:
-- ALWAYS call find_resorts_geoapify when user mentions: ski resorts, skiing, ski areas, alpine resorts, winter sports
-- Use the tool for ANY location mentioned (cities, countries, regions, mountains)
-- Do NOT ask for clarification if a location is mentioned - use the tool immediately
-- If no location specified, ask for one, then use the tool
+- ALWAYS call find_resorts_geoapify when users ask about ski resorts, skiing, winter sports, or alpine activities
+- Use the tool immediately when ANY location is mentioned (cities, countries, regions, mountains)
+- Do NOT ask for clarification - use the tool right away with the location provided
+- If no location is specified, ask the user to provide one
 
-RESPONSE FORMAT:
-After tool call: summarize results in 2-4 bullets with name, address, and website if available.
-Example: "- Resort Name, City, Country - [website]"
+RESPONSE GUIDELINES:
+- After tool calls: Summarize results naturally in 2-4 bullet points
+- Include resort names, locations, and websites when available
+- Keep responses conversational and helpful
+- Be enthusiastic about skiing and winter sports
 
-ERROR HANDLING:
-If tool fails or returns no results: provide helpful information about known ski destinations in that area.
-For example: "While I couldn't find specific resorts, [Location] is known for [ski facts]. Consider nearby destinations like [nearby ski areas]."
+FALLBACK BEHAVIOR:
+When APIs don't return results or fail:
+- Provide expert knowledge about famous ski destinations
+- Suggest well-known resorts in the requested area
+- Maintain helpful, informative tone
 
-FALLBACK KNOWLEDGE:
-- Switzerland: Zermatt, St. Moritz, Verbier, Interlaken
-- France: Chamonix, Val d'Isère, Courchevel
-- USA: Lake Tahoe, Vail, Aspen, Park City
-- Italy: Cortina d'Ampezzo, Val Gardena
-- Austria: Innsbruck, Salzburg area
+EXAMPLE RESPONSE:
+"Here are some great ski resorts near [Location]:
+- Resort Name - [Location], [Country] - [website]
+- Another Resort - [Location], [Country]"
 
-NEVER invent resort names or details. Only use data from tool results."""
+KNOWLEDGE BASE:
+Switzerland: Zermatt, St. Moritz, Verbier, Interlaken
+France: Chamonix, Val d'Isère, Courchevel, Les Trois Vallées
+USA: Lake Tahoe, Vail, Aspen, Park City, Jackson Hole
+Italy: Cortina d'Ampezzo, Val Gardena, Sestriere
+Austria: Innsbruck, Zell am See, Kaprun, Salzburg
+
+Always prioritize real data from tools over general knowledge."""
         }
     ]
 
@@ -141,27 +231,60 @@ NEVER invent resort names or details. Only use data from tool results."""
         logger.error(f"LLM call failed: {e}")
         return "I'm sorry, I'm having trouble processing your request right now. Could you try again?"
 
-async def _execute_tool(tool_name: str, args: dict) -> dict:
-    """Execute a tool and return the results."""
+async def _execute_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Execute a tool function with the provided arguments.
+
+    This function acts as a dispatcher for tool calls from the LLM. It handles
+    the execution of external API calls and provides fallback behavior when
+    APIs are unavailable or return no results.
+
+    Args:
+        tool_name: Name of the tool to execute
+        tool_args: Arguments to pass to the tool function
+
+    Returns:
+        Dictionary containing tool execution results, potentially enhanced
+        with fallback information if the primary API call fails or returns
+        no results.
+
+    Raises:
+        Exception: Re-raised after logging if tool execution fails
+    """
     try:
         if tool_name == "find_resorts_geoapify":
+            # Import the Geoapify resorts API module
             from apis.geoapify_resorts import find_resorts_geoapify
-            result = await find_resorts_geoapify(**args)
 
-            # If fallback is needed, enhance the response with helpful information
-            if result.get("fallback") or not result.get("resorts"):
-                city = args.get("city", "the area")
+            # Execute the tool with provided arguments
+            result = await find_resorts_geoapify(**tool_args)
+            logger.info(f"Geoapify API call completed for city: {tool_args.get('city', 'unknown')}")
+
+            # Check if we need to provide fallback information
+            needs_fallback = (
+                result.get("fallback") or
+                not result.get("resorts") or
+                result.get("error")
+            )
+
+            if needs_fallback:
+                city = tool_args.get("city", "the area")
                 fallback_info = get_fallback_ski_info(city)
                 result["fallback_info"] = fallback_info
+                logger.info(f"Added fallback information for {city}")
 
             return result
 
         else:
-            return {"error": f"Unknown tool: {tool_name}"}
+            # Unknown tool requested
+            error_msg = f"Unknown tool requested: {tool_name}"
+            logger.warning(error_msg)
+            return {"error": error_msg}
 
     except Exception as e:
-        logger.error(f"Tool execution failed: {e}")
-        return {"error": f"Tool execution failed: {str(e)}"}
+        # Log the error and return a structured error response
+        logger.error(f"Tool execution failed for {tool_name}: {e}")
+        return {"error": f"Tool execution failed: {str(e)}", "fallback": True}
 
 def get_fallback_ski_info(location: str) -> str:
     """Provide helpful fallback information for ski destinations."""

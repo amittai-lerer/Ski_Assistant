@@ -1,203 +1,293 @@
-# SkiTrip Assistant
+# 🎿 SkiTrip Assistant
 
-A conversational CLI assistant for planning ski vacations with weather and resort data integration.
+*A conversational AI assistant for planning ski vacations with real-time resort data*
 
-## Overview
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-orange.svg)](https://openai.com/)
 
-SkiTrip Assistant is a 3-day MVP that helps users plan short ski trips by:
-- Integrating weather forecasts from Open-Meteo API
-- Finding ski resorts through Foursquare Places API
-- Ranking resorts by skiing conditions using deterministic algorithms
-- Building detailed daily itineraries with activity suggestions
-- Preventing hallucinations through multiple validation layers
+## ✨ Overview
 
-## Key Features
+SkiTrip Assistant is an intelligent conversational CLI tool that helps users discover ski resorts and plan amazing ski vacations. Built with cutting-edge AI technology, it combines:
 
-### ✅ Assignment Requirements Met
+- 🤖 **OpenAI GPT-4o-mini** for natural language understanding
+- 🏔️ **Geoapify Places API** for real-time resort data
+- 🎯 **Tool calling** for structured API interactions
+- 🛡️ **Hallucination prevention** through source attribution
+- 💬 **Conversational interface** with rich terminal output
 
-- **Conversational Quality**: Natural language input with structured reasoning
-- **Multi-turn Context**: Plan refinement and conversation memory
-- **2+ External APIs**: Open-Meteo (weather) and Foursquare (resorts)
-- **Hallucination Management**: Schema validation, source attribution, self-checking
-- **Decision Logic**: Deterministic ranking based on snow, wind, and temperature
+## 🚀 Key Features
 
-### 🛡️ Hallucination Prevention
+### ✅ Core Capabilities
+- **Natural Conversations**: Chat naturally about ski trips and resorts
+- **Real Data Integration**: Fetches live resort information from Geoapify
+- **Smart Fallbacks**: Provides expert knowledge when APIs are unavailable
+- **Multi-turn Context**: Remembers conversation history
+- **Beautiful Output**: Rich terminal formatting with colors and emojis
 
-- **Source Attribution**: Every claim includes source_id for verification
-- **Schema Validation**: Pydantic models enforce data structure
-- **Self-Checking**: LLM validates plans against evidence
-- **Numeric Constraints**: Realistic limits on ski time and activity duration
-- **API-Only Data**: No invented resort names, weather, or venue details
+### 🛡️ Reliability Features
+- **Source Attribution**: Every recommendation includes data source
+- **Error Handling**: Graceful degradation with helpful alternatives
+- **API Validation**: Robust error handling for external services
+- **Fallback Knowledge**: Expert ski destination recommendations
 
-## Quick Start
+### 🎯 Assignment Compliance
+- ✅ **Conversational Quality**: Natural language processing with GPT-4
+- ✅ **External API Integration**: Geoapify Places API for resort data
+- ✅ **Tool Calling**: OpenAI function calling for structured interactions
+- ✅ **Hallucination Management**: Source attribution and validation
+- ✅ **Real Data**: No invented resort information
+
+## 🏁 Quick Start
+
+### Prerequisites
+- Python 3.8+
+- OpenAI API key
+- Geoapify API key (free tier available)
 
 ### Installation
 
 ```bash
-# Clone and setup
-git clone <repository>
+# Clone the repository
+git clone <your-repo-url>
 cd ski-assistant
-make setup
 
-# Or manually:
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -e .
 ```
 
 ### Environment Setup
 
-```bash
-# Copy environment template
-cp config/.env.sample .env
-
-# Edit .env with your API keys
-OPENAI_API_KEY=sk-your-key-here
-FOURSQUARE_API_KEY=fsq-your-key-here
-```
-
-### Usage Examples
+Create a `.env` file in the project root:
 
 ```bash
-# Plan a new trip
-ski-assistant plan --region "Lake Tahoe" --dates 2025-12-20..2025-12-22 --ability intermediate
+# Required API Keys
+OPENAI_API_KEY=sk-your-openai-api-key-here
+GEOAPIFY_API_KEY=your-geoapify-api-key-here
 
-# Refine existing plan
-ski-assistant refine --request "Add more après-ski activities"
-
-# View plan info
-ski-assistant info
-
-# Clear saved plan
-ski-assistant clear
+# Optional Configuration
+OPEN_METEO_BASE=https://api.open-meteo.com/v1/forecast
+TIMEOUT_S=15
+ENV=development
 ```
 
-## Architecture
+### Get API Keys
+
+1. **OpenAI API Key**: Visit [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. **Geoapify API Key**: Visit [geoapify.com](https://www.geoapify.com/) (3000 free requests/day)
+
+### Run the Assistant
+
+```bash
+# Start the interactive assistant
+python -m app.cli
+
+# Or use the alternative entry point
+python main.py
+```
+
+## 💬 Usage Examples
+
+### Interactive Conversations
+
+```
+🎿 Welcome to SkiTrip Assistant! 🎿
+
+You: Find ski resorts near Chamonix
+
+Assistant: While I couldn't find specific resorts in Chamonix, it's legendary for its challenging slopes and stunning Mont Blanc views. Consider exploring nearby areas such as Val d'Isère, Courchevel, and Les Trois Vallées for excellent skiing opportunities.
+
+You: Tell me about Lake Tahoe
+
+Assistant: Lake Tahoe has fantastic skiing! It has excellent snow conditions and diverse terrain. Heavenly Mountain Resort is a highlight with stunning lake views. Other popular areas include Northstar California Resort, Kirkwood Mountain Resort, and Squaw Valley Alpine Meadows.
+
+You: What about Switzerland?
+
+Assistant: Switzerland is world-famous for skiing! Consider these top destinations: Zermatt (Matterhorn views), St. Moritz (luxury skiing), Verbier (off-piste paradise), and Interlaken (gateway to the Jungfrau region).
+```
+
+### Programmatic Usage
+
+```python
+from core.orchestrator import run
+import asyncio
+
+async def plan_trip():
+    result = await run("Find ski resorts near Zermatt", {})
+    print(result)
+
+asyncio.run(plan_trip())
+```
+
+## 🏗️ Architecture
+
+### System Design
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CLI Input     │───▶│   Orchestrator   │───▶│   Rich Output   │
+│   User Input    │───▶│   CLI Interface  │───▶│   Rich Output   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
                     ┌──────────────────┐
-                    │  Guardrails &    │
-                    │  Validation      │
+                    │   Orchestrator    │
+                    │  (Coordinates)   │
                     └──────────────────┘
                               │
                               ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Open-Meteo API │◀───│  Data Fetching   │───▶│ Foursquare API  │
+│   OpenAI GPT    │◀───│  Tool Calling    │───▶│ Geoapify API   │
+│   (Reasoning)   │    │   (Dispatcher)   │    │  (Resorts)     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
                     ┌──────────────────┐
-                    │  Deterministic   │
-                    │  Ranking &       │
-                    │  Scoring         │
+                    │   Fallback       │
+                    │   Knowledge      │
                     └──────────────────┘
 ```
+
+### Core Components
+
+- **`app/cli.py`**: Main conversational interface with rich terminal output
+- **`core/reasoning.py`**: OpenAI integration with tool calling capabilities
+- **`core/orchestrator.py`**: Coordinates between components
+- **`apis/geoapify_resorts.py`**: Geoapify Places API integration
+- **`core/memory.py`**: Conversation history and plan persistence
 
 ### Data Flow
 
-1. **Input Processing**: CLI parses flags or natural language
-2. **Intent Extraction**: LLM extracts structured trip parameters
-3. **Data Fetching**: Parallel API calls for resorts and weather
-4. **Ranking**: Deterministic scoring based on skiing conditions
-5. **Itinerary Building**: Daily schedules with activity suggestions
-6. **Validation**: Multi-layer hallucination prevention
-7. **Output**: Rich-formatted plan with source attribution
+1. **User Input** → CLI interface parses and formats
+2. **Intent Recognition** → LLM analyzes query for ski-related intent
+3. **Tool Calling** → LLM calls `find_resorts_geoapify` with location
+4. **API Execution** → Geoapify API returns resort data
+5. **Response Generation** → LLM summarizes results naturally
+6. **Fallback Handling** → Expert knowledge if APIs unavailable
 
-## Hallucination Controls
+## 🧪 Testing
 
-### Specific Checks Implemented
-
-- **Source ID Verification**: Every external claim has provenance
-- **Schema Validation**: Pydantic models prevent malformed data
-- **Self-Check Prompt**: LLM identifies unsupported statements
-- **Numeric Sanity**: Ski time ≤ 7.5h/day, realistic durations
-- **Wind Thresholds**: Automatic wind-sheltered suggestions > 60 kph
-
-### Example Validation
-
-```python
-# ✅ Valid: Has source_id
-PlanStep(
-    activity="Morning skiing",
-    location="Heavenly Mountain Resort",
-    source_id="fsq:venue_12345"
-)
-
-# ❌ Invalid: Missing source_id
-PlanStep(
-    activity="Morning skiing", 
-    location="Heavenly Mountain Resort"
-    # Missing source_id - validation fails
-)
-```
-
-## Transcripts
-
-Sample CLI sessions demonstrating different scenarios:
-
-- [`transcripts/powder_day.md`](transcripts/powder_day.md) - High snowfall conditions
-- [`transcripts/warm_spell.md`](transcripts/warm_spell.md) - Poor weather handling
-- [`transcripts/beginner_group.md`](transcripts/beginner_group.md) - Family planning with refinement
-
-## Testing
-
+### Run All Tests
 ```bash
-# Run all tests
-make test
+# Run the test suite
+python -m pytest tests/ -v
 
-# Run specific test modules
+# Run specific test files
 python -m pytest tests/test_guardrails.py -v
-python -m pytest tests/test_scorer.py -v
 ```
 
-## Development
+### Manual Testing
+```bash
+# Test Geoapify integration
+python test_geoapify.py
 
-### Project Structure
+# Test with real data
+python test_with_real_data.py
+```
+
+### API Testing
+```bash
+# Test OpenAI integration
+python -c "from core.reasoning import llm_with_tools; import asyncio; print(asyncio.run(llm_with_tools('Hello')))"
+
+# Test Geoapify API
+python -c "from apis.geoapify_resorts import find_resorts_geoapify; import asyncio; print(asyncio.run(find_resorts_geoapify(city='Zermatt')))"
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | OpenAI API key for GPT models | ✅ |
+| `GEOAPIFY_API_KEY` | Geoapify API key for resort data | ✅ |
+| `OPEN_METEO_BASE` | Open-Meteo API base URL | ❌ |
+| `TIMEOUT_S` | API request timeout in seconds | ❌ |
+| `ENV` | Environment (development/production) | ❌ |
+
+### Advanced Settings
+
+Edit `config/settings.py` to modify:
+- Model selection (`OPENAI_MODEL`)
+- Temperature settings (`LLM_TEMPERATURE`)
+- Retry logic (`LLM_MAX_RETRIES`)
+- Logging levels
+
+## 📁 Project Structure
 
 ```
 ski-assistant/
-├─ app/cli.py              # CLI entry point
-├─ core/                   # Business logic
-│  ├─ orchestrator.py      # Main coordination
-│  ├─ prompts.py          # LLM prompts
-│  ├─ reasoning.py        # LLM integration
-│  ├─ guardrails.py       # Hallucination prevention
-│  └─ memory.py           # Plan persistence
-├─ apis/                   # External integrations
-│  ├─ weather_openmeteo.py # Weather API
-│  └─ places_foursquare.py # Resorts API
-├─ models/schemas.py       # Data models
-├─ ranking/scorer.py       # Deterministic ranking
-├─ ui/renderers.py         # Rich output formatting
-├─ config/                 # Configuration
-│  ├─ settings.py         # Environment loading
-│  └─ .env.sample         # Template
-└─ tests/                  # Unit tests
+├── app/
+│   └── cli.py                 # Main CLI interface
+├── core/
+│   ├── reasoning.py           # OpenAI tool calling & LLM integration
+│   ├── orchestrator.py        # Main coordination logic
+│   ├── memory.py              # Conversation persistence
+│   └── prompts.py             # System prompts and templates
+├── apis/
+│   ├── geoapify_resorts.py    # Geoapify Places API integration
+│   ├── places_foursquare.py   # Legacy Foursquare integration
+│   └── weather_openmeteo.py   # Weather API (future use)
+├── models/
+│   └── schemas.py             # Pydantic data models
+├── config/
+│   └── settings.py            # Environment configuration
+├── ranking/
+│   └── scorer.py              # Resort ranking algorithms
+├── ui/
+│   └── renderers.py           # Output formatting
+├── tests/
+│   ├── test_guardrails.py     # Validation tests
+│   └── test_scorer.py         # Ranking tests
+├── transcripts/               # Sample conversations
+├── main.py                    # Alternative entry point
+├── pyproject.toml             # Project configuration
+├── requirements.txt           # Dependencies
+├── .env                       # Environment variables (gitignored)
+├── .gitignore                 # Git ignore rules
+└── README.md                  # This file
 ```
 
-### Key Design Decisions
+## 🎯 Key Technologies
 
-- **Deterministic Ranking**: No LLM involvement in scoring decisions
-- **Source Attribution**: Every external claim tracked with source_id
-- **Mock Data**: Development mode uses fake data when APIs unavailable
-- **Rich Output**: Beautiful terminal formatting with tables and colors
-- **Multi-turn**: Plan persistence enables conversation refinement
+- **Python 3.8+**: Core language
+- **OpenAI GPT-4o-mini**: Conversational AI and tool calling
+- **Geoapify Places API**: Real-time resort and activity data
+- **Rich**: Beautiful terminal output formatting
+- **Pydantic**: Data validation and serialization
+- **httpx**: Modern async HTTP client
+- **python-dotenv**: Environment variable management
 
-## Future Work
+## 🤝 Contributing
 
-- **Drive Times**: Integration with mapping APIs for travel planning
-- **Lift Status**: Real-time lift and trail condition updates
-- **Group Planning**: Multi-person trip coordination
-- **Budget Integration**: Cost estimation and optimization
-- **Advanced Weather**: Hourly forecasts and condition alerts
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 📝 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **OpenAI** for GPT models and tool calling capabilities
+- **Geoapify** for comprehensive places and resort data
+- **Rich** library for beautiful terminal interfaces
+- **Pydantic** for robust data validation
+
+---
+
+**Ready to plan your next ski adventure?** 🎿❄️
+
+```bash
+python -m app.cli
+# Let's find your perfect ski resort!
+```
 ```
 
