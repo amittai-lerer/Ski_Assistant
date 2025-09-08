@@ -77,7 +77,7 @@ Total Ski Time: 3h 30m
 
 Sources & Notes
 • Weather data: Open-Meteo API
-• Resort information: Foursquare Places API
+• Resort information: Geoapify Places API
 • Trip planning: SkiTrip Assistant v1.0
 
 Note: All resort details, weather forecasts, and venue information

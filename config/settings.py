@@ -16,11 +16,9 @@ load_dotenv()
 # Core env configuration
 # -------------------------
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-FOURSQUARE_API_KEY: str = os.getenv("FOURSQUARE_API_KEY", "")
 GEOAPIFY_API_KEY: str = os.getenv("GEOAPIFY_API_KEY", "")
 
 OPEN_METEO_BASE: str = os.getenv("OPEN_METEO_BASE", "https://api.open-meteo.com/v1/forecast")
-FOURSQUARE_BASE: str = os.getenv("FOURSQUARE_BASE", "https://api.foursquare.com/v3/places")
 
 TIMEOUT_S: float = float(os.getenv("TIMEOUT_S", "15"))
 ENV: str = os.getenv("ENV", "dev")  # "dev" or "prod"
@@ -49,7 +47,6 @@ DEBUG: bool = (os.getenv("DEBUG", "0") == "1") or is_dev()
 
 # Feature flags (keep real external calls off by default in dev)
 USE_REAL_OPENAI: bool = os.getenv("USE_REAL_OPENAI", "0") == "1" and is_prod()
-USE_REAL_FOURSQUARE: bool = os.getenv("USE_REAL_FOURSQUARE", "0") == "1" and is_prod()
 # Open-Meteo is free; okay to use in dev. Set to "0" in .env to force stub.
 USE_REAL_OPEN_METEO: bool = os.getenv("USE_REAL_OPEN_METEO", "1") == "1"
 
@@ -66,11 +63,11 @@ if is_prod():
     # require("FOURSQUARE_API_KEY", FOURSQUARE_API_KEY)
 
 __all__ = [
-    "OPENAI_API_KEY", "FOURSQUARE_API_KEY", "GEOAPIFY_API_KEY",
-    "OPEN_METEO_BASE", "FOURSQUARE_BASE",
+    "OPENAI_API_KEY", "GEOAPIFY_API_KEY",
+    "OPEN_METEO_BASE",
     "TIMEOUT_S", "ENV", "OPENAI_MODEL",
     "LLM_TEMPERATURE", "LLM_MAX_RETRIES",
     "MAX_RESORTS", "MAX_SKI_HOURS_PER_DAY", "WIND_THRESHOLD_KPH",
-    "DEBUG", "USE_REAL_OPENAI", "USE_REAL_FOURSQUARE", "USE_REAL_OPEN_METEO",
+    "DEBUG", "USE_REAL_OPENAI", "USE_REAL_OPEN_METEO",
     "is_dev", "is_prod",
 ]

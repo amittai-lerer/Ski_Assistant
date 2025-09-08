@@ -30,7 +30,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from core.orchestrator import run
-from config.settings import OPENAI_API_KEY, FOURSQUARE_API_KEY
+from config.settings import OPENAI_API_KEY, GEOAPIFY_API_KEY
 
 async def test_basic_flow():
     """Test the basic orchestration flow."""
@@ -38,7 +38,7 @@ async def test_basic_flow():
     
     # Check API keys
     print(f"OpenAI API Key: {'✅ Set' if OPENAI_API_KEY else '❌ Missing'}")
-    print(f"Foursquare API Key: {'✅ Set' if FOURSQUARE_API_KEY else '❌ Missing'}")
+    print(f"Geoapify API Key: {'✅ Set' if GEOAPIFY_API_KEY else '❌ Missing'}")
     
     # Test with mock data
     ctx = {

@@ -230,7 +230,6 @@ ski-assistant/
 │   └── prompts.py             # System prompts and templates
 ├── apis/
 │   ├── geoapify_resorts.py    # Geoapify Places API integration
-│   ├── places_foursquare.py   # Legacy Foursquare integration
 │   └── weather_openmeteo.py   # Weather API (future use)
 ├── models/
 │   └── schemas.py             # Pydantic data models

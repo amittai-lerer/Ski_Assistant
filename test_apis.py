@@ -65,64 +65,6 @@ async def test_openai_api():
         print(f"❌ OPENAI API ERROR: {e}")
         return False
 
-async def test_foursquare_api():
-    """Test Foursquare Places API"""
-    print("\n🧪 TESTING FOURSQUARE API")
-    print("-" * 35)
-
-    if not FOURSQUARE_API_KEY:
-        print("❌ No Foursquare API key configured")
-        return False
-
-    url = 'https://api.foursquare.com/v3/places/search'
-    headers = {
-        'Authorization': FOURSQUARE_API_KEY,
-        'Accept': 'application/json'
-    }
-    params = {
-        'query': 'ski resort',
-        'near': 'Lake Tahoe',
-        'limit': 3
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, headers=headers, params=params, timeout=15)
-
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get('results', [])
-
-                print("✅ Foursquare API working!")
-                print(f"   Found {len(results)} ski resorts in Lake Tahoe")
-
-                if results:
-                    for i, place in enumerate(results[:2], 1):
-                        name = place.get('name', 'Unknown')
-                        address = place.get('location', {}).get('formatted_address', 'Unknown location')
-                        print(f"   {i}. {name} - {address}")
-
-                return True
-
-            elif response.status_code == 401:
-                print("❌ INVALID API KEY (401 Unauthorized)")
-                print("   Get a valid key from: https://developer.foursquare.com/")
-                return False
-
-            elif response.status_code == 403:
-                print("❌ API KEY FORBIDDEN (403)")
-                print("   Your API key lacks required permissions")
-                return False
-
-            else:
-                print(f"❌ HTTP ERROR: {response.status_code}")
-                print(f"   Response: {response.text[:100]}")
-                return False
-
-        except Exception as e:
-            print(f"❌ CONNECTION ERROR: {e}")
-            return False
-
 async def test_weather_api():
     """Test Open-Meteo Weather API for different date ranges"""
     print("\n🧪 TESTING WEATHER API")
@@ -222,10 +164,6 @@ async def main():
     openai_ok = await test_openai_api()
     results.append(("OpenAI API", openai_ok))
 
-    # Test Foursquare
-    foursquare_ok = await test_foursquare_api()
-    results.append(("Foursquare API", foursquare_ok))
-
     # Test Weather
     weather_ok = await test_weather_api()
     results.append(("Weather API", weather_ok))
@@ -250,7 +188,7 @@ async def main():
         print("⚠️  SOME APIs NEED FIXING:")
         print("\\n🔧 To fix:")
         print("1. OpenAI: Add credits at https://platform.openai.com/account/billing")
-        print("2. Foursquare: Get API key at https://developer.foursquare.com/")
+        print("2. Geoapify: Get API key at https://www.geoapify.com/")
         print("3. Weather: Works for current dates, limited for future dates (normal)")
 
         print("\\n💡 Run this test again after fixing APIs:")

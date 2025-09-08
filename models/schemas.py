@@ -47,13 +47,13 @@ class WeatherForecast(BaseModel):
     source_id: str = "open_meteo"
 
 class Resort(BaseModel):
-    """Ski resort information from Foursquare API."""
+    """Ski resort information from Geoapify API."""
     name: str
-    location: str
+    address: str
     latitude: float
     longitude: float
-    rating: Optional[float] = None
-    source_id: str = "foursquare"
+    website: Optional[str] = None
+    source_id: str = "geoapify"
 
 class PlanStep(BaseModel):
     """A single step in the daily plan."""

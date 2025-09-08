@@ -16,12 +16,12 @@ def test_imports():
     print("�� Testing imports...")
     
     try:
-        from config.settings import OPENAI_API_KEY, FOURSQUARE_API_KEY, DEBUG
+        from config.settings import OPENAI_API_KEY, GEOAPIFY_API_KEY, DEBUG
         from models.schemas import TripSlots, AbilityLevel, Resort, ForecastDay
         from core.reasoning import llm_json
         from core.orchestrator import run
         from apis.weather_openmeteo import get_forecast
-        from apis.places_foursquare import search_resorts
+        from apis.geoapify_resorts import find_resorts_geoapify
         from ranking.scorer import rank, compute_features, score
         from ui.renderers import render_plan
         print("✅ All imports successful")
@@ -36,12 +36,12 @@ def test_configuration():
     
     try:
         from config.settings import (
-            OPENAI_API_KEY, FOURSQUARE_API_KEY, DEBUG, 
+            OPENAI_API_KEY, GEOAPIFY_API_KEY, DEBUG,
             LLM_TEMPERATURE, MAX_RESORTS, TIMEOUT_S
         )
         
         print(f"  OpenAI API Key: {'✅ Set' if OPENAI_API_KEY else '❌ Missing'}")
-        print(f"  Foursquare API Key: {'✅ Set' if FOURSQUARE_API_KEY else '❌ Missing'}")
+        print(f"  Geoapify API Key: {'✅ Set' if GEOAPIFY_API_KEY else '❌ Missing'}")
         print(f"  Debug Mode: {DEBUG}")
         print(f"  LLM Temperature: {LLM_TEMPERATURE}")
         print(f"  Max Resorts: {MAX_RESORTS}")
@@ -165,8 +165,8 @@ async def test_api_integrations():
     
     try:
         from apis.weather_openmeteo import get_forecast
-        from apis.places_foursquare import search_resorts
-        from config.settings import FOURSQUARE_API_KEY
+        from apis.geoapify_resorts import find_resorts_geoapify
+        from config.settings import GEOAPIFY_API_KEY
         
         # Test weather API (should work without API key in dev mode)
         print("  Testing weather API...")
@@ -179,7 +179,8 @@ async def test_api_integrations():
         # Test places API
         print("  Testing places API...")
         try:
-            resorts = await search_resorts("Lake Tahoe", limit=3)
+            result = await find_resorts_geoapify(city="Lake Tahoe", limit=3)
+            resorts = result.get("resorts", [])
             print(f"    Places API: ✅ {len(resorts)} resorts found")
         except Exception as e:
             print(f"    Places API: ⚠️ {e} (expected without API key)")

@@ -18,7 +18,7 @@ async def test_basic_flow():
     
     # Check API keys
     print(f"OpenAI API Key: {'✅ Set' if OPENAI_API_KEY else '❌ Missing'}")
-    print(f"Foursquare API Key: {'✅ Set' if FOURSQUARE_API_KEY else '❌ Missing'}")
+    print(f"Geoapify API Key: {'✅ Set' if GEOAPIFY_API_KEY else '❌ Missing'}")
     
     # Test with mock data
     ctx = {
