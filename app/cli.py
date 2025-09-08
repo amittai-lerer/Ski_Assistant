@@ -33,9 +33,12 @@ from rich.prompt import Prompt
 from core.orchestrator import run
 from core.memory import load_last_plan, get_plan_info
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging (suppress HTTP request logs)
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Suppress httpx HTTP request logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Initialize Rich console for beautiful terminal output
 console = Console()
