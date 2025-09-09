@@ -50,14 +50,27 @@ async def find_resorts_geoapify(city: str = None, lat: float = None, lon: float 
 
     try:
         async with httpx.AsyncClient() as client:
+            # Try more specific ski resort search first
             r = await client.get("https://api.geoapify.com/v2/places",
                 params={
-                    "categories": "activity",
-                    "text": "ski",
+                    "categories": "sport.ski_resort",  # More specific category
                     "filter": f"circle:{lon},{lat},{int(radius_km*1000)}",
                     "limit": limit,
                     "apiKey": key
                 }, timeout=30)
+
+            # If no ski resort results, try broader sport category with ski keywords
+            if r.status_code == 200:
+                data = r.json()
+                if len(data.get("features", [])) == 0:
+                    r = await client.get("https://api.geoapify.com/v2/places",
+                        params={
+                            "categories": "sport",
+                            "text": "ski resort OR alpine OR winter sport OR snow",
+                            "filter": f"circle:{lon},{lat},{int(radius_km*1000)}",
+                            "limit": limit,
+                            "apiKey": key
+                        }, timeout=30)
 
             if r.status_code == 401:
                 return {"error": "geoapify_unauthorized"}
@@ -72,10 +85,17 @@ async def find_resorts_geoapify(city: str = None, lat: float = None, lon: float 
                 name = props.get("name") or ""
                 formatted = props.get("formatted") or ""
 
-                # Filter for ski-related places (improved heuristic)
-                ski_keywords = ["ski", "alpine", "snow", "mountain", "resort", "winter", "sport", "club", "center", "fitness"]
+                # Filter for ski-related places (comprehensive heuristic)
+                ski_keywords = [
+                    "ski", "alpine", "snow", "mountain", "resort", "winter", "sport",
+                    "club", "center", "fitness", "piste", "lift", "gondola", "chairlift",
+                    "schnee", "berg", "alpen", "skiparadies", "skigebiet", "wintersport",
+                    "snowboard", "telecabin", "seilbahn", "bergbahn"
+                ]
                 text_to_check = (name + " " + formatted).lower()
-                if any(keyword.lower() in text_to_check for keyword in ski_keywords):
+                is_ski_related = any(keyword.lower() in text_to_check for keyword in ski_keywords)
+
+                if is_ski_related:
                     geom = f.get("geometry", {})
                     coords = (geom.get("coordinates") or [None, None])
                     out.append({

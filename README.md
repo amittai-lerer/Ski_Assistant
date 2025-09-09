@@ -338,20 +338,33 @@ python test_rapidapi_key.py
 
 ## 🔧 Environment Configuration
 
-Create a `.env` file with all required API keys:
+### Setup Your API Keys (Secure Method)
 
-```env
-# Required API Keys
-OPENAI_API_KEY=your_openai_key_here
-GEOAPIFY_API_KEY=your_geoapify_key_here
-RAPIDAPI_KEY=your_rapidapi_key_here
+1. **Copy the template** (safe for version control):
+   ```bash
+   cp .env.example .env
+   ```
 
-# Optional Configuration
-ENV=dev
-DEBUG=1
-USE_REAL_OPENAI=1
-USE_REAL_OPEN_METEO=1
-```
+2. **Edit `.env`** with your actual API keys:
+   ```bash
+   # Required API Keys
+   OPENAI_API_KEY=sk-your_actual_openai_key_here
+   GEOAPIFY_API_KEY=your_actual_geoapify_key_here
+   RAPIDAPI_KEY=your_actual_rapidapi_key_here
+   ```
+
+### 🔒 Security Best Practices
+
+- ✅ **`.env` is in `.gitignore`** - Never committed to version control
+- ✅ **Use `.env.example`** - Template with placeholders (safe to commit)
+- ✅ **Keep API keys private** - Never share or expose them
+- ✅ **Use environment-specific keys** - Different keys for dev/prod
+
+### Get Your API Keys
+
+- **OpenAI**: https://platform.openai.com/account/api-keys
+- **Geoapify**: https://geoapify.com/ (free tier available)
+- **RapidAPI**: https://rapidapi.com/ (for SkiAPI access)
 
 ---
 

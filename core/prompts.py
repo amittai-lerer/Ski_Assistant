@@ -220,6 +220,83 @@ Draft to review:
 
 
 
+def get_chain_of_thought_ski_planning_prompt(*, user_query: str, context: Dict[str, Any]) -> str:
+    """
+    Build a chain-of-thought prompt specifically for ski planning decisions.
+    This implements structured multi-step reasoning for ski trip planning.
+    """
+    has_existing_plan = context.get('has_plan', False)
+    plan_region = context.get('plan_region', 'None')
+    conversation_history = context.get('conversation_history', [])
+
+    # Build context summary
+    context_summary = f"""
+EXISTING CONTEXT:
+- Current Plan: {'Yes' if has_existing_plan else 'No'}
+- Plan Location: {plan_region}
+- Conversation Turns: {len(conversation_history)}
+"""
+
+    if conversation_history:
+        recent_exchanges = conversation_history[-2:]  # Last 2 exchanges
+        context_summary += "\nRECENT CONVERSATION:"
+        for i, exchange in enumerate(recent_exchanges, 1):
+            user_msg = exchange.get('user_input', '')[:50]
+            context_summary += f"\n{i}. User: {user_msg}..."
+
+    return f"""
+CHAIN-OF-THOUGHT SKI PLANNING REASONING
+
+USER QUERY: "{user_query}"
+
+{context_summary}
+
+FOLLOW THIS STRUCTURED REASONING PROCESS:
+
+STEP 1: QUERY ANALYSIS
+- What is the user asking for? (information, planning, weather, comparison, etc.)
+- What ski-specific parameters are mentioned? (location, dates, ability, preferences)
+- Is this a new query or related to existing conversation?
+
+STEP 2: CONTEXT EVALUATION
+- Review existing plan details if any
+- Consider seasonal factors (current time of year affects recommendations)
+- Check for user preferences from conversation history
+
+STEP 3: INFORMATION REQUIREMENTS
+- What data do I need to answer this query?
+- Which tools should I call and in what order?
+- Are there any gaps that require clarification?
+
+STEP 4: TOOL EXECUTION STRATEGY
+- Primary tools: Wikipedia for resort info, Geoapify for location search
+- Secondary tools: SkiAPI for detailed resort data, Open-Meteo for weather
+- Fallback sequence: If primary fails, try secondary; if both fail, ask for clarification
+
+STEP 5: DATA SYNTHESIS
+- Combine information from multiple sources
+- Cross-validate facts for consistency
+- Identify key insights and recommendations
+
+STEP 6: RESPONSE STRUCTURE
+- Start with direct answer to the query
+- Provide supporting facts from tools
+- Include practical recommendations
+- End with one clear follow-up question if more info needed
+
+REASONING TRACE:
+- Document your thought process at each step
+- Explain tool selection rationale
+- Note any assumptions made
+
+FINAL RESPONSE:
+- Keep ski-focused and enthusiastic
+- Base all facts on tool results
+- Be conversational and helpful
+
+THINK STEP BY STEP, then provide your final response.
+""".strip()
+
 def get_chat_router_prompt(*, history: str, user_text: str) -> str:
     return f"""
 You are a conversational ski-trip assistant. Decide what the user wants and ask for any missing info.
