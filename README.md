@@ -282,11 +282,84 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Ready to plan your next ski adventure?** 🎿❄️
+## 🆕 Latest Features & Enhancements
+
+### 🧠 Advanced LLM Integration
+- **Tool Calling**: OpenAI function calling for seamless API interactions
+- **Multi-API Orchestration**: Coordinates 4 different APIs simultaneously
+- **Intelligent Query Routing**: Automatically selects optimal APIs for user queries
+
+### 🔄 Robust Error Handling & Fallbacks
+- **Rate Limit Management**: Short, informative notices for API quota exceeded
+- **Automatic Wikipedia Fallback**: Seamless transition when SkiAPI is rate-limited
+- **Graceful Degradation**: Continues providing value despite API limitations
+- **User-Friendly Messages**: Clear, actionable error communications
+
+### 📚 Wikipedia Integration
+- **Comprehensive Resort Coverage**: Background info for major ski destinations
+- **Fallback Support**: Automatic activation when SkiAPI is unavailable
+- **Rich Historical Content**: Geographical, historical, and operational details
+- **Smart Name Resolution**: Handles alternative resort name spellings
+
+### 🎿 Enhanced Ski Information System
+- **Multi-Source Intelligence**: Combines data from 4 complementary APIs
+- **Real-time Weather**: Current conditions optimized for skiing
+- **Detailed Resort Database**: Comprehensive info via SkiAPI with Wikipedia backup
+- **Location Intelligence**: Precise coordinates and regional context
+
+### 🛠️ Complete API Stack
+- **🤖 OpenAI GPT-4**: Intelligent conversation and tool orchestration
+- **🏔️ Geoapify Places API**: Resort discovery and location intelligence
+- **🌤️ Open-Meteo Weather API**: Ski-optimized weather forecasting
+- **📖 Wikipedia API**: Comprehensive resort background information
+- **🎿 SkiAPI (RapidAPI)**: Detailed resort database with automatic fallback
+
+## 🧪 Enhanced Testing Suite
+
+### Comprehensive API Testing
+```bash
+# Test all 4 APIs integration
+python test_all_apis.py
+
+# Test Wikipedia fallback functionality
+python test_wikipedia_integration.py
+
+# Test error handling scenarios
+python test_error_fallback.py
+
+# Validate RapidAPI key setup
+python test_rapidapi_key.py
+```
+
+### Error Handling Examples
+- **Rate Limited**: "Using Wikipedia info (SkiAPI rate limit exceeded)"
+- **Auth Failed**: "SkiAPI authentication failed. Please check your RAPIDAPI_KEY"
+- **Wikipedia Success**: Automatic detailed resort information from Wikipedia
+
+## 🔧 Environment Configuration
+
+Create a `.env` file with all required API keys:
+
+```env
+# Required API Keys
+OPENAI_API_KEY=your_openai_key_here
+GEOAPIFY_API_KEY=your_geoapify_key_here
+RAPIDAPI_KEY=your_rapidapi_key_here
+
+# Optional Configuration
+ENV=dev
+DEBUG=1
+USE_REAL_OPENAI=1
+USE_REAL_OPEN_METEO=1
+```
+
+---
+
+**Ready to experience the most advanced ski planning assistant?** 🎿❄️
 
 ```bash
 python -m app.cli
-# Let's find your perfect ski resort!
+# Advanced AI-powered ski trip planning with comprehensive resort intelligence!
 ```
 ```
 

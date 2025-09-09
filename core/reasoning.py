@@ -59,7 +59,7 @@ async def llm_json(prompt: str, schema: Type[T], *, temperature: float = LLM_TEM
 
     This function is kept for compatibility with older code that expects
     JSON schema validation. New code should use llm_with_tools() instead.
-
+    
     Args:
         prompt: The prompt to send to the LLM
         schema: Pydantic schema for response validation
@@ -85,10 +85,10 @@ async def llm_with_tools(user_message: str, conversation_history: Optional[List[
     Args:
         user_message: The current user message/query
         conversation_history: List of previous conversation exchanges for context
-
+        
     Returns:
         Natural language response from the LLM, potentially including tool results
-
+        
     Raises:
         Exception: If LLM API call fails after retries
     """
@@ -163,6 +163,53 @@ async def llm_with_tools(user_message: str, conversation_history: Optional[List[
                     "required": ["city", "start_date", "end_date"]
                 }
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_ski_resort_details",
+                "description": "Get detailed information about a specific ski resort using SkiAPI database including location, basic details, and resort information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "resort_name": {
+                            "type": "string",
+                            "description": "Name of the ski resort to get details for"
+                        },
+                        "country": {
+                            "type": "string",
+                            "description": "Country code (e.g., 'US', 'CA', 'FR') to help narrow down the search"
+                        },
+                        "include_snow_report": {
+                            "type": "boolean",
+                            "description": "Whether to include current snow conditions and report (may not be available)",
+                            "default": False
+                        }
+                    },
+                    "required": ["resort_name"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_wikipedia_resort_info",
+                "description": "Get comprehensive information about a ski resort from Wikipedia including history, location, and key facts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "resort_name": {
+                            "type": "string",
+                            "description": "Name of the ski resort to look up on Wikipedia"
+                        },
+                        "country": {
+                            "type": "string",
+                            "description": "Optional country context to help with the search"
+                        }
+                    },
+                    "required": ["resort_name"]
+                }
+            }
         }
     ]
 
@@ -179,16 +226,21 @@ SKI CONTEXT ONLY:
 - NEVER give generic weather info unless it's ski-relevant (snow conditions, temperatures for skiing)
 
 TOOL USAGE RULES:
-- ALWAYS call find_resorts_geoapify when users ask about ski resorts, skiing, or winter sports
+- ALWAYS call find_resorts_geoapify when users ask about ski resorts, skiing, or winter sports locations
 - ONLY call get_weather_forecast for SKI-RELEVANT weather (snow conditions, ski temperatures, avalanche risks)
+- Use get_wikipedia_resort_info when users ask about a specific ski resort's history, background, or general information
+- Use get_ski_resort_details when users ask about specific resort details, lift counts, trail info, or snow reports
 - Use tools immediately when ANY ski location is mentioned
 - Do NOT use tools for non-ski locations or generic weather requests
+- Prefer Wikipedia for resort background/history, SkiAPI for operational details
 
 CLARIFYING QUESTIONS:
 - If location unclear for skiing: "Which ski resort or region are you interested in?"
 - If activity unclear: "Are you looking for downhill skiing, cross-country skiing, or snowboarding?"
+- If specific resort details: "Which ski resort would you like detailed information about?"
 - If no ski context: "I'd love to help with your ski trip planning! What ski destination interests you?"
 - If weather request: "For skiing, are you asking about snow conditions, temperatures, or avalanche risks?"
+- If resort info needed: "Would you like details about a specific resort including lift counts, trails, or snow conditions?"
 
 RESPONSE RULES:
 - Keep ALL responses focused on skiing and winter sports
@@ -196,6 +248,14 @@ RESPONSE RULES:
 - No generic answers - redirect everything to ski context
 - Be enthusiastic about skiing but stay focused
 - If you don't have specific data: Ask for ski-specific clarification
+
+API ERROR HANDLING:
+- When SkiAPI has errors (quota, auth, subscription): Automatically fallback to Wikipedia
+- When Wikipedia returns 'no_wikipedia_info': Ask for clarification about the resort name
+- For quota exceeded: Give short notice and use Wikipedia fallback
+- For other API errors: Try Wikipedia, if that fails give short "API unavailable" notice
+- Keep error messages brief and user-friendly
+- Always try to provide some information rather than complete failure
 
 SKI-RELEVANT WEATHER ONLY:
 - Snow depth and quality
@@ -214,7 +274,13 @@ Switzerland: Zermatt, St. Moritz, Verbier, Interlaken
 France: Chamonix, Val d'Isère, Courchevel, Les Trois Vallées
 USA: Lake Tahoe, Vail, Aspen, Park City, Jackson Hole
 Italy: Cortina d'Ampezzo, Val Gardena, Sestriere
-Austria: Innsbruck, Zell am See, Kaprun, Salzburg"""
+Austria: Innsbruck, Zell am See, Kaprun, Salzburg
+
+API INTEGRATION:
+- Use Wikipedia for resort history, background, and general information
+- Use SkiAPI for detailed resort information (lifts, trails, snow conditions)
+- Use Geoapify for finding nearby ski resorts and locations
+- Use Open-Meteo for ski-relevant weather forecasts"""
         }
     ]
 
@@ -243,29 +309,47 @@ Austria: Innsbruck, Zell am See, Kaprun, Salzburg"""
 
         # Check if LLM wants to call a tool
         if message.tool_calls:
-            tool_call = message.tool_calls[0]
-            tool_name = tool_call.function.name
-            tool_args = json.loads(tool_call.function.arguments)
+            logger.info(f"LLM made {len(message.tool_calls)} tool calls")
 
-            # Execute the tool
-            tool_result = await _execute_tool(tool_name, tool_args)
-
-            # Add tool result to conversation and get final response
+            # First add the assistant message with tool calls
             messages.append(message)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": json.dumps(tool_result)
-            })
+
+            # Handle all tool calls
+            for tool_call in message.tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = json.loads(tool_call.function.arguments)
+                tool_call_id = tool_call.id
+
+                logger.info(f"Processing tool call: {tool_name} (ID: {tool_call_id})")
+
+                # Execute the tool
+                try:
+                    tool_result = await _execute_tool(tool_name, tool_args)
+                    logger.info(f"Tool execution result: {tool_result}")
+                except Exception as e:
+                    logger.error(f"Tool execution failed: {e}")
+                    tool_result = {"error": "tool_execution_failed", "message": str(e)}
+
+                # Add tool result to conversation (must come after assistant message)
+                tool_message = {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": json.dumps(tool_result, default=str)
+                }
+                messages.append(tool_message)
+                logger.info(f"Added tool response for {tool_name}")
 
             # Get final response from LLM
-            final_response = client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=messages,
-                temperature=0.7
-            )
-
-            return final_response.choices[0].message.content
+            try:
+                final_response = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                    temperature=0.7
+                )
+                return final_response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"Final LLM response failed: {e}")
+                return f"Sorry, I encountered an issue processing the results. {str(e)}"
 
         # No tool call needed, return direct response
         return message.content
@@ -387,6 +471,134 @@ async def _execute_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
                 logger.error(f"Weather API error: {e}")
                 return {"error": f"Weather service unavailable: {str(e)}"}
 
+        elif tool_name == "get_ski_resort_details":
+            # Import the SkiAPI module
+            from apis.skiapi_resorts import get_ski_resort_details
+
+            # Parse the arguments
+            resort_name = tool_args.get("resort_name", "")
+            country = tool_args.get("country", "")
+            include_snow_report = tool_args.get("include_snow_report", False)
+
+            if not resort_name:
+                return {"error": "Missing required parameter: resort_name"}
+
+            # Execute the tool with provided arguments
+            result = await get_ski_resort_details(
+                resort_name=resort_name,
+                country=country,
+                include_snow_report=include_snow_report
+            )
+
+            logger.info(f"SkiAPI call completed for resort: {resort_name}")
+
+            # Handle specific error types and fallback to Wikipedia
+            error_type = result.get("error")
+
+            # For rate limits and API errors, fallback to Wikipedia
+            if error_type in ["rate_limit_exceeded", "authentication_failed", "subscription_required", "http_429", "http_401", "http_403"]:
+                logger.info(f"SkiAPI error ({error_type}), falling back to Wikipedia for {resort_name}")
+
+                # Automatically try Wikipedia as fallback
+                try:
+                    from apis.wikipedia_resorts import search_wikipedia_resort_info
+                    wiki_result = await search_wikipedia_resort_info(resort_name, country)
+
+                    if wiki_result.get("success"):
+                        return {
+                            "wikipedia_fallback": True,
+                            "api_status": f"skiapi_{error_type}",
+                            "resort_name": wiki_result.get("resort_name"),
+                            "summary": wiki_result.get("summary"),
+                            "page_url": wiki_result.get("page_url"),
+                            "source": "wikipedia_fallback",
+                            "message": f"Using Wikipedia info (SkiAPI {error_type.replace('_', ' ')})"
+                        }
+                    else:
+                        # Wikipedia also failed
+                        return {
+                            "error": "all_apis_failed",
+                            "message": f"Sorry, both SkiAPI and Wikipedia are unavailable. {result.get('message', 'Please try again later.')}",
+                            "resort_requested": resort_name,
+                            "api_status": "all_failed"
+                        }
+                except Exception as wiki_error:
+                    logger.error(f"Wikipedia fallback failed: {wiki_error}")
+                    return {
+                        "error": "api_unavailable",
+                        "message": f"SkiAPI unavailable and Wikipedia fallback failed. Please try again later.",
+                        "resort_requested": resort_name,
+                        "api_status": error_type
+                    }
+
+            elif result.get("fallback") or result.get("error"):
+                # For other errors, try Wikipedia fallback
+                try:
+                    from apis.wikipedia_resorts import search_wikipedia_resort_info
+                    wiki_result = await search_wikipedia_resort_info(resort_name, country)
+
+                    if wiki_result.get("success"):
+                        result["wikipedia_fallback"] = True
+                        result["api_status"] = "skiapi_error_wikipedia_fallback"
+                        logger.info(f"Added Wikipedia fallback for {resort_name}")
+                        return result
+                except Exception as wiki_error:
+                    logger.error(f"Wikipedia fallback failed: {wiki_error}")
+
+                # If Wikipedia also fails, provide short notice
+                return {
+                    "error": "api_unavailable",
+                    "message": f"SkiAPI temporarily unavailable. Please try again later.",
+                    "resort_requested": resort_name,
+                    "api_status": "unavailable"
+                }
+
+            return result
+
+        elif tool_name == "get_wikipedia_resort_info":
+            # Import the Wikipedia API module
+            from apis.wikipedia_resorts import search_wikipedia_resort_info
+
+            # Parse the arguments
+            resort_name = tool_args.get("resort_name", "")
+            country = tool_args.get("country", "")
+
+            if not resort_name:
+                return {"error": "Missing required parameter: resort_name"}
+
+            # Execute the tool with provided arguments
+            result = await search_wikipedia_resort_info(
+                resort_name=resort_name,
+                country=country
+            )
+
+            logger.info(f"Wikipedia search completed for resort: {resort_name}")
+
+            # Handle different result types
+            if result.get("success"):
+                return {
+                    "wikipedia_info": result,
+                    "resort_name": result.get("resort_name"),
+                    "summary": result.get("summary"),
+                    "page_url": result.get("page_url"),
+                    "source": "wikipedia"
+                }
+            elif result.get("error") == "no_wikipedia_page":
+                # Return a friendly message asking for clarification
+                return {
+                    "error": "no_wikipedia_info",
+                    "message": f"I couldn't find a Wikipedia page for '{resort_name}'. Could you please clarify the resort name or provide more details about this ski destination?",
+                    "resort_requested": resort_name,
+                    "suggestion": "Try using the exact resort name or check if there might be a different spelling."
+                }
+            else:
+                # Handle other API errors
+                return {
+                    "error": "wikipedia_error",
+                    "message": f"Sorry, I encountered an issue while fetching information about {resort_name}. {result.get('message', 'Please try again later.')}",
+                    "resort_requested": resort_name
+                }
+
         else:
             # Unknown tool requested
             error_msg = f"Unknown tool requested: {tool_name}"
@@ -440,14 +652,14 @@ def _get_fake_conversation_response(user_message: str) -> str:
 
 def validate_response(response: str, schema: Type[T]) -> T:
     """Validate a response string against a schema.
-
+    
     Args:
         response: The response string to validate
         schema: Pydantic model to validate against
-
+        
     Returns:
         Validated response object
-
+        
     Raises:
         ValueError: If validation fails
     """

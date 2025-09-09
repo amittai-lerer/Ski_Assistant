@@ -17,6 +17,7 @@ load_dotenv()
 # -------------------------
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 GEOAPIFY_API_KEY: str = os.getenv("GEOAPIFY_API_KEY", "")
+RAPIDAPI_KEY: str = os.getenv("RAPIDAPI_KEY", "")
 
 OPEN_METEO_BASE: str = os.getenv("OPEN_METEO_BASE", "https://api.open-meteo.com/v1/forecast")
 
@@ -46,7 +47,7 @@ def is_prod() -> bool:
 DEBUG: bool = (os.getenv("DEBUG", "0") == "1") or is_dev()
 
 # Feature flags (keep real external calls off by default in dev)
-USE_REAL_OPENAI: bool = os.getenv("USE_REAL_OPENAI", "0") == "1" and is_prod()
+USE_REAL_OPENAI: bool = os.getenv("USE_REAL_OPENAI", "0") == "1"  # Allow in dev for testing
 # Open-Meteo is free; okay to use in dev. Set to "0" in .env to force stub.
 USE_REAL_OPEN_METEO: bool = os.getenv("USE_REAL_OPEN_METEO", "1") == "1"
 
@@ -63,7 +64,7 @@ if is_prod():
     # require("FOURSQUARE_API_KEY", FOURSQUARE_API_KEY)
 
 __all__ = [
-    "OPENAI_API_KEY", "GEOAPIFY_API_KEY",
+    "OPENAI_API_KEY", "GEOAPIFY_API_KEY", "RAPIDAPI_KEY",
     "OPEN_METEO_BASE",
     "TIMEOUT_S", "ENV", "OPENAI_MODEL",
     "LLM_TEMPERATURE", "LLM_MAX_RETRIES",
