@@ -1,7 +1,21 @@
 # app/streamlit_app.py
 import asyncio
+import sys
+import os
+from pathlib import Path
 import streamlit as st
 from typing import List, Dict, Any
+
+# Add project root to Python path so imports work correctly
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from core.reasoning import llm_with_tools
 
@@ -65,8 +79,6 @@ with st.sidebar:
         st.metric("Assistant Replies", assistant_messages)
 
     st.divider()
-
-   
 
 # Handle selected question from sidebar
 if "selected_question" in st.session_state and st.session_state.selected_question:
