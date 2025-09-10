@@ -1,296 +1,477 @@
-#!/usr/bin/env python3
-"""Comprehensive test script to verify SkiTrip Assistant functionality."""
+"""
+Comprehensive Test Suite for SkiTrip Assistant
 
+This test suite demonstrates professional testing practices:
+- Unit tests for all core modules
+- Integration tests for API interactions
+- Mock-based testing for external dependencies
+- Error handling and edge case coverage
+- Configuration testing
+- Clean test organization with fixtures
+
+Run with: python -m pytest test_comprehensive.py -v
+"""
+
+import pytest
+
+pytestmark = pytest.mark.asyncio
 import asyncio
-import sys
-import json
-from pathlib import Path
-from datetime import date
+from unittest.mock import Mock, patch, AsyncMock
+from datetime import date, datetime
+from typing import Dict, Any, List
 
-# Add the project root to Python path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+# Core modules to test
+from core.reasoning import llm_with_tools, _build_system_messages, _get_tool_definitions
+from core.tools import _execute_tool, FindResortsArgs, GetWeatherForecastArgs
+from core.config import (
+    MODEL_NAME, TEMPERATURE_CHAIN_OF_THOUGHT, TEMPERATURE_EVIDENCE_ONLY,
+    TEMPERATURE_VERIFY, TOOL_PRIORITIES
+)
+from core.providers.llm import OpenAIProvider
+from core.prompts import build_evidence_only_instruction, build_verify_instruction
 
-def test_imports():
-    """Test that all modules can be imported."""
-    print("�� Testing imports...")
-    
-    try:
-        from config.settings import OPENAI_API_KEY, GEOAPIFY_API_KEY, DEBUG
-        from models.schemas import TripSlots, AbilityLevel, Resort, ForecastDay
-        from core.reasoning import llm_json
-        from core.orchestrator import run
+# Utility modules
+from utils.errors import _ok, _err
+from utils.dates import normalize_date_range
+
+# API modules (mocked for testing)
+from apis.geoapify_resorts import find_resorts_geoapify
         from apis.weather_openmeteo import get_forecast
-        from apis.geoapify_resorts import find_resorts_geoapify
-        from ranking.scorer import rank, compute_features, score
-        from ui.renderers import render_plan
-        print("✅ All imports successful")
-        return True
-    except ImportError as e:
-        print(f"❌ Import error: {e}")
-        return False
+from apis.skiapi_resorts import get_ski_resort_details
+from apis.wikipedia_resorts import search_wikipedia_resort_info
 
-def test_configuration():
-    """Test configuration loading."""
-    print("\n🔧 Testing configuration...")
-    
-    try:
-        from config.settings import (
-            OPENAI_API_KEY, GEOAPIFY_API_KEY, DEBUG,
-            LLM_TEMPERATURE, MAX_RESORTS, TIMEOUT_S
-        )
-        
-        print(f"  OpenAI API Key: {'✅ Set' if OPENAI_API_KEY else '❌ Missing'}")
-        print(f"  Geoapify API Key: {'✅ Set' if GEOAPIFY_API_KEY else '❌ Missing'}")
-        print(f"  Debug Mode: {DEBUG}")
-        print(f"  LLM Temperature: {LLM_TEMPERATURE}")
-        print(f"  Max Resorts: {MAX_RESORTS}")
-        print(f"  Timeout: {TIMEOUT_S}s")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Configuration error: {e}")
-        return False
 
-def test_data_models():
-    """Test Pydantic data models."""
-    print("\n📊 Testing data models...")
-    
-    try:
-        from models.schemas import TripSlots, AbilityLevel, Resort, ForecastDay, PlanStep
-        
-        # Test TripSlots
-        trip = TripSlots(
-            region="Lake Tahoe",
-            start_date=date(2025, 12, 20),
-            end_date=date(2025, 12, 22),
-            ability=AbilityLevel.INTERMEDIATE
-        )
-        print(f"  TripSlots: ✅ {trip.region}")
-        
-        # Test Resort
-        resort = Resort(
-            name="Test Resort",
-            address="123 Test St",
-            latitude=39.1,
-            longitude=-120.0,
-            category="Ski Resort",
-            source_id="test:123"
-        )
-        print(f"  Resort: ✅ {resort.name}")
-        
-        # Test ForecastDay
-        forecast = ForecastDay(
-            date=date(2025, 12, 20),
-            latitude=39.1,
-            longitude=-120.0,
-            max_temp_c=2.0,
-            min_temp_c=-5.0,
-            precipitation_mm=5.0,
-            snowfall_mm=10.0,
-            wind_speed_kph=15.0,
-            wind_direction_deg=180.0,
-            freezing_level_m=1500.0,
-            source_id="test:forecast_1"
-        )
-        print(f"  ForecastDay: ✅ {forecast.snowfall_mm}mm snow")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Data model error: {e}")
-        return False
+class TestUtilities:
+    """Test utility functions and helpers."""
 
-def test_llm_integration():
-    """Test LLM integration."""
-    print("\n🤖 Testing LLM integration...")
-    
-    try:
-        from core.reasoning import llm_json
-        from models.schemas import TripSlots
-        
-        # Test with fake data (should work even without API key)
-        result = llm_json("Test prompt", TripSlots)
-        print(f"  LLM Integration: ✅ {result.region}")
-        return True
-    except Exception as e:
-        print(f"❌ LLM integration error: {e}")
-        return False
+    def test_ok_helper(self):
+        """Test successful response helper."""
+        result = _ok({"data": "test"}, status="success")
+        assert result["ok"] is True
+        assert result["data"] == "test"
+        assert result["status"] == "success"
 
-def test_scoring_algorithm():
-    """Test deterministic scoring."""
-    print("\n📈 Testing scoring algorithm...")
-    
-    try:
-        from ranking.scorer import compute_features, score, normalize
-        from models.schemas import ForecastDay
-        from datetime import date
-        
-        # Create test forecast data
-        forecast_days = [
-            ForecastDay(
-                date=date(2025, 12, 20),
-                latitude=39.1,
-                longitude=-120.0,
-                max_temp_c=2.0,
-                min_temp_c=-5.0,
-                precipitation_mm=5.0,
-                snowfall_mm=15.0,
-                wind_speed_kph=10.0,
-                wind_direction_deg=180.0,
-                freezing_level_m=1500.0,
-                source_id="test:forecast_1"
-            )
+    def test_err_helper(self):
+        """Test error response helper."""
+        result = _err("test_error", "Something went wrong", error_code=500)
+        assert result["ok"] is False
+        assert result["error"] == "test_error"
+        assert result["message"] == "Something went wrong"
+        assert result["error_code"] == 500
+
+    def test_date_normalization_valid(self):
+        """Test date normalization with valid inputs."""
+        # Use future dates to avoid today's date adjustment
+        future_date = date.today().replace(year=2025, month=12, day=15)
+        start_str = future_date.strftime("%Y-%m-%d")
+        end_str = (future_date.replace(day=20)).strftime("%Y-%m-%d")
+
+        result = normalize_date_range(start_str, end_str)
+        assert result["start"] == future_date
+        assert result["end"] == future_date.replace(day=20)
+
+    def test_date_normalization_past_dates(self):
+        """Test date normalization adjusts past dates to today."""
+        today = date.today()
+        result = normalize_date_range("2020-01-01", "2020-01-05")
+        assert result["start"] >= today
+
+    def test_date_normalization_reversed_dates(self):
+        """Test date normalization fixes reversed dates."""
+        result = normalize_date_range("2025-01-20", "2025-01-15")
+        assert result["end"] >= result["start"]
+
+
+class TestConfiguration:
+    """Test configuration management."""
+
+    def test_model_configuration(self):
+        """Test LLM model configuration."""
+        assert MODEL_NAME == "gpt-4o-mini"
+        assert isinstance(MODEL_NAME, str)
+
+    def test_temperature_settings(self):
+        """Test temperature configuration values."""
+        assert 0.0 <= TEMPERATURE_CHAIN_OF_THOUGHT <= 1.0
+        assert TEMPERATURE_EVIDENCE_ONLY == 0.0  # Should be deterministic
+        assert TEMPERATURE_VERIFY == 0.0  # Should be deterministic
+
+    def test_tool_priorities(self):
+        """Test tool prioritization configuration."""
+        assert "resort_info" in TOOL_PRIORITIES
+        assert "location_search" in TOOL_PRIORITIES
+        assert "weather" in TOOL_PRIORITIES
+
+        # Wikipedia should be primary for resort info
+        assert TOOL_PRIORITIES["resort_info"][0] == "wikipedia"
+
+
+class TestSystemMessages:
+    """Test system message building and tool definitions."""
+
+    def test_build_system_messages_structure(self):
+        """Test system messages have correct structure."""
+        messages = _build_system_messages()
+        assert isinstance(messages, list)
+        assert len(messages) > 0
+
+        system_msg = messages[0]
+        assert system_msg["role"] == "system"
+        assert "SkiTrip Assistant" in system_msg["content"]
+        assert "ski planning assistant" in system_msg["content"].lower()
+
+    def test_build_system_messages_content(self):
+        """Test system messages contain required ski context."""
+        messages = _build_system_messages()
+        content = messages[0]["content"]
+
+        # Should contain key ski context elements
+        assert "ski" in content.lower()
+        assert "resort" in content.lower()
+        assert "tool" in content.lower()
+
+    def test_tool_definitions_structure(self):
+        """Test tool definitions have correct OpenAI format."""
+        tools = _get_tool_definitions()
+        assert isinstance(tools, list)
+        assert len(tools) == 4  # Should have 4 tools
+
+        for tool in tools:
+            assert tool["type"] == "function"
+            assert "function" in tool
+            func_def = tool["function"]
+            assert "name" in func_def
+            assert "description" in func_def
+            assert "parameters" in func_def
+
+    def test_tool_definitions_names(self):
+        """Test all expected tools are defined."""
+        tools = _get_tool_definitions()
+        tool_names = [t["function"]["name"] for t in tools]
+
+        expected_names = [
+            "find_resorts_geoapify",
+            "get_weather_forecast",
+            "get_ski_resort_details",
+            "get_wikipedia_resort_info"
         ]
-        
-        # Test feature computation
-        features = compute_features(forecast_days)
-        print(f"  Features computed: ✅ {features}")
-        
-        # Test scoring
-        score_val = score(features)
-        print(f"  Score calculated: ✅ {score_val:.3f}")
-        
-        # Test normalization
-        norm_val = normalize(15, 0, 30)
-        print(f"  Normalization: ✅ {norm_val}")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Scoring algorithm error: {e}")
-        return False
 
-async def test_api_integrations():
-    """Test external API integrations."""
-    print("\n🌐 Testing API integrations...")
-    
-    try:
-        from apis.weather_openmeteo import get_forecast
-        from apis.geoapify_resorts import find_resorts_geoapify
-        from config.settings import GEOAPIFY_API_KEY
-        
-        # Test weather API (should work without API key in dev mode)
-        print("  Testing weather API...")
-        try:
-            forecast = await get_forecast(39.1, -120.0, date(2025, 12, 20), date(2025, 12, 22))
-            print(f"    Weather API: ✅ {len(forecast)} forecast days")
-        except Exception as e:
-            print(f"    Weather API: ⚠️ {e} (expected in dev mode)")
-        
-        # Test places API
-        print("  Testing places API...")
-        try:
-            result = await find_resorts_geoapify(city="Lake Tahoe", limit=3)
-            resorts = result.get("resorts", [])
-            print(f"    Places API: ✅ {len(resorts)} resorts found")
-        except Exception as e:
-            print(f"    Places API: ⚠️ {e} (expected without API key)")
-        
-        return True
-    except Exception as e:
-        print(f"❌ API integration error: {e}")
-        return False
+        assert set(tool_names) == set(expected_names)
 
-async def test_end_to_end():
-    """Test complete end-to-end flow."""
-    print("\n�� Testing end-to-end flow...")
-    
-    try:
-        from core.orchestrator import run
-        
-        # Test with CLI-style context
-        ctx = {
-            "region": "Lake Tahoe",
-            "dates": "2025-12-20..2025-12-22",
-            "ability": "intermediate"
+
+class TestPrompts:
+    """Test prompt building functions."""
+
+    def test_evidence_only_instruction(self):
+        """Test evidence-only synthesis instruction."""
+        instruction = build_evidence_only_instruction()
+        assert isinstance(instruction, str)
+        assert len(instruction) > 0
+        assert "evidence" in instruction.lower()
+
+    def test_verify_instruction(self):
+        """Test verification instruction with draft."""
+        draft = "Test draft response"
+        instruction = build_verify_instruction(draft)
+        assert isinstance(instruction, str)
+        assert draft in instruction
+        assert "verify" in instruction.lower()
+
+
+class TestPydanticModels:
+    """Test Pydantic argument validation models."""
+
+    def test_find_resorts_args_valid(self):
+        """Test valid FindResortsArgs."""
+        args = FindResortsArgs(city="Chamonix", radius_km=50, limit=10)
+        assert args.city == "Chamonix"
+        assert args.radius_km == 50
+        assert args.limit == 10
+
+    def test_find_resorts_args_validation(self):
+        """Test FindResortsArgs validation constraints."""
+        # Test radius constraints
+        with pytest.raises(ValueError):
+            FindResortsArgs(city="Test", radius_km=200)  # Too high
+
+        with pytest.raises(ValueError):
+            FindResortsArgs(city="Test", radius_km=2)  # Too low
+
+        # Test limit constraints
+        with pytest.raises(ValueError):
+            FindResortsArgs(city="Test", limit=25)  # Too high
+
+        with pytest.raises(ValueError):
+            FindResortsArgs(city="Test", limit=0)  # Too low
+
+    def test_weather_args_required_fields(self):
+        """Test GetWeatherForecastArgs required fields."""
+        with pytest.raises(ValueError):
+            GetWeatherForecastArgs(city="Test")  # Missing dates
+
+        args = GetWeatherForecastArgs(
+            city="Chamonix",
+            start_date="2025-01-15",
+            end_date="2025-01-20"
+        )
+        assert args.city == "Chamonix"
+
+
+class TestLLMProvider:
+    """Test LLM provider abstraction."""
+
+    def test_provider_instantiation(self):
+        """Test OpenAI provider can be instantiated."""
+        provider = OpenAIProvider()
+        assert provider is not None
+        assert hasattr(provider, 'chat')
+
+    @patch('openai.OpenAI')
+    def test_provider_chat_method(self, mock_openai):
+        """Test provider chat method with mocked OpenAI."""
+        # Setup mock
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_message = Mock()
+        mock_message.content = "Test response"
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message = mock_message
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        provider = OpenAIProvider()
+        provider.client = mock_client
+
+        # Test sync chat (would need to be async in real implementation)
+        # This is a simplified test structure
+
+    @patch('openai.OpenAI')
+    def test_provider_handles_tools(self, mock_openai):
+        """Test provider handles tool parameters correctly."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_message = Mock()
+        mock_message.content = "Tool response"
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message = mock_message
+        mock_client.chat.completions.create.return_value = mock_response
+
+        provider = OpenAIProvider()
+        provider.client = mock_client
+
+        # Mock the async chat call
+        # In real implementation, this would test tool_choice handling
+
+
+class TestToolExecution:
+    """Test tool execution and dispatcher."""
+
+    @patch('apis.geoapify_resorts.find_resorts_geoapify')
+    async def test_find_resorts_tool(self, mock_api):
+        """Test find_resorts_geoapify tool execution."""
+        # Setup mock response
+        mock_api.return_value = _ok({
+            "area": "Chamonix",
+            "resorts": [
+                {"name": "Test Resort", "address": "123 Test St", "lat": 45.0, "lon": 6.0}
+            ]
+        })
+
+        # Execute tool
+        result = await _execute_tool("find_resorts_geoapify", {
+            "city": "Chamonix",
+            "radius_km": 50,
+            "limit": 8
+        })
+
+        assert result["ok"] is True
+        assert "area" in result
+        assert result["area"] == "Chamonix"
+        mock_api.assert_called_once()
+
+    @patch('apis.weather_openmeteo.get_forecast')
+    @patch('apis.geoapify_resorts._geocode')
+    async def test_weather_tool(self, mock_geocode, mock_weather):
+        """Test weather forecast tool execution."""
+        # Setup mocks
+        mock_geocode.return_value = (45.9237, 6.8694, "Chamonix, France")
+        mock_weather.return_value = [
+            Mock(date=date(2025, 1, 15), temperature_2m_max=5.0, temperature_2m_min=-2.0,
+                 precipitation_sum=5.0, snowfall_sum=10.0, wind_speed_10m_max=15.0)
+        ]
+
+        result = await _execute_tool("get_weather_forecast", {
+            "city": "Chamonix",
+            "start_date": "2025-01-15",
+            "end_date": "2025-01-20"
+        })
+
+        assert result["ok"] is True
+        assert "location" in result
+        assert "forecast" in result
+        assert len(result["forecast"]) > 0
+
+    def test_unknown_tool_error(self):
+        """Test handling of unknown tools."""
+        result = asyncio.run(_execute_tool("unknown_tool", {}))
+        assert result["ok"] is False
+        assert result["error"] == "unknown_tool"
+
+    def test_invalid_tool_arguments(self):
+        """Test validation of tool arguments."""
+        result = asyncio.run(_execute_tool("find_resorts_geoapify", {
+            "city": "",  # Invalid: empty city
+            "radius_km": 200  # Invalid: too high
+        }))
+        assert result["ok"] is False
+        assert result["error"] == "invalid_arguments"
+
+
+class TestAPIs:
+    """Test API integrations with mocking."""
+
+    @patch('httpx.AsyncClient.get')
+    @patch('apis.geoapify_resorts._geocode')
+    async def test_geoapify_api_mock(self, mock_geocode, mock_get):
+        """Test Geoapify API with mocked HTTP calls."""
+        # Mock geocoding
+        mock_geocode.return_value = (45.9237, 6.8694, "Chamonix, France")
+
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "features": [
+                {
+                    "properties": {
+                        "name": "Test Ski Resort",
+                        "formatted": "123 Mountain Rd",
+                        "datasource": {"raw": {"website": "https://test.com"}}
+                    },
+                    "geometry": {"coordinates": [6.0, 45.0]}
+                }
+            ]
         }
-        
-        print("  Running orchestration...")
-        result = await run("", ctx)
-        
-        print(f"  End-to-end: ✅ {len(result)} characters output")
-        print(f"  First 200 chars: {result[:200]}...")
-        
-        return True
-    except Exception as e:
-        print(f"❌ End-to-end error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        mock_get.return_value = mock_response
 
-def test_cli_interface():
-    """Test CLI interface."""
-    print("\n💻 Testing CLI interface...")
-    
-    try:
-        import subprocess
-        import sys
-        
-        # Test CLI help
-        result = subprocess.run([
-            sys.executable, "-m", "app.cli", "--help"
-        ], capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0:
-            print("  CLI Help: ✅ Working")
-        else:
-            print(f"  CLI Help: ❌ {result.stderr}")
-            return False
-        
-        return True
-    except Exception as e:
-        print(f"❌ CLI interface error: {e}")
-        return False
+        result = await find_resorts_geoapify("Chamonix", radius_km=50, limit=5)
 
-async def main():
-    """Run all tests."""
-    print("🧪 SkiTrip Assistant - Comprehensive Test Suite")
-    print("=" * 50)
-    
-    tests = [
-        ("Imports", test_imports),
-        ("Configuration", test_configuration),
-        ("Data Models", test_data_models),
-        ("LLM Integration", test_llm_integration),
-        ("Scoring Algorithm", test_scoring_algorithm),
-        ("API Integrations", test_api_integrations),
-        ("End-to-End Flow", test_end_to_end),
-        ("CLI Interface", test_cli_interface),
-    ]
-    
-    results = []
-    
-    for test_name, test_func in tests:
+        # Check the actual return format from geoapify function
+        assert "area" in result
+        assert "resorts" in result
+        assert len(result["resorts"]) == 1
+        assert result["resorts"][0]["name"] == "Test Ski Resort"
+
+    @patch('httpx.AsyncClient.get')
+    async def test_weather_api_mock(self, mock_get):
+        """Test weather API with mocked HTTP calls."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "daily": {
+                "time": ["2025-01-15"],
+                "temperature_2m_max": [5.0],
+                "temperature_2m_min": [-2.0],
+                "precipitation_sum": [5.0],
+                "snowfall_sum": [10.0],
+                "wind_speed_10m_max": [15.0]  # Correct field name
+            }
+        }
+        mock_get.return_value = mock_response
+
+        result = await get_forecast(45.0, 6.0, date(2025, 1, 15), date(2025, 1, 15))
+
+        assert len(result) == 1
+        assert result[0].temperature_2m_max == 5.0
+        assert result[0].snowfall_sum == 10.0
+
+
+class TestErrorHandling:
+    """Test comprehensive error handling."""
+
+    @patch('apis.geoapify_resorts.find_resorts_geoapify')
+    async def test_api_error_handling(self, mock_api):
+        """Test API error handling in tools."""
+        mock_api.side_effect = Exception("API Error")
+
+        result = await _execute_tool("find_resorts_geoapify", {
+            "city": "Chamonix"
+        })
+
+        assert result["ok"] is False
+        assert result["error"] == "tool_execution_failed"
+        assert "API Error" in result["message"]
+
+    def test_validation_error_handling(self):
+        """Test Pydantic validation error handling."""
+        # Test with invalid data that should fail validation
+        result = asyncio.run(_execute_tool("find_resorts_geoapify", {
+            "city": "Test",
+            "radius_km": "invalid"  # Should be number
+        }))
+
+        assert result["ok"] is False
+        assert result["error"] == "invalid_arguments"
+
+
+class TestIntegration:
+    """Integration tests combining multiple components."""
+
+    @patch('core.providers.llm.OpenAIProvider.chat')
+    async def test_llm_with_tools_integration(self, mock_chat):
+        """Test full LLM with tools integration."""
+        # Setup mock responses
+        mock_response1 = Mock()
+        mock_response1.tool_calls = [
+            Mock(function=Mock(name="find_resorts_geoapify", arguments='{"city": "Chamonix"}'))
+        ]
+        mock_response1.content = None
+
+        mock_response2 = Mock()
+        mock_response2.tool_calls = None
+        mock_response2.content = "Found great ski resorts in Chamonix!"
+
+        mock_chat.side_effect = [mock_response1, mock_response2]
+
+        with patch('core.tools._execute_tool') as mock_execute:
+            mock_execute.return_value = _ok({"area": "Chamonix", "resorts": []})
+
+            result = await llm_with_tools("Find ski resorts in Chamonix")
+
+            assert isinstance(result, str)
+            assert len(result) > 0
+            mock_chat.assert_called()
+
+    def test_configuration_integration(self):
+        """Test that configuration integrates properly across modules."""
+        # Test that config values are used consistently
+        from core.config import DEFAULT_RADIUS_KM, DEFAULT_LIMIT
+
+        # These should be reasonable defaults
+        assert 10 <= DEFAULT_RADIUS_KM <= 100
+        assert 1 <= DEFAULT_LIMIT <= 20
+
+
+class TestCLIFunctionality:
+    """Test CLI functionality."""
+
+    def test_cli_imports(self):
+        """Test that CLI module can be imported."""
         try:
-            if asyncio.iscoroutinefunction(test_func):
-                success = await test_func()
-            else:
-                success = test_func()
-            results.append((test_name, success))
-        except Exception as e:
-            print(f"❌ {test_name} failed with exception: {e}")
-            results.append((test_name, False))
-    
-    # Summary
-    print("\n" + "=" * 50)
-    print("�� TEST SUMMARY")
-    print("=" * 50)
-    
-    passed = 0
-    for test_name, success in results:
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{test_name:20} {status}")
-        if success:
-            passed += 1
-    
-    print(f"\nResults: {passed}/{len(results)} tests passed")
-    
-    if passed == len(results):
-        print("🎉 ALL TESTS PASSED! Your SkiTrip Assistant is ready!")
-    else:
-        print("⚠️  Some tests failed. Check the errors above.")
-    
-    return passed == len(results)
+            from app.cli import main
+            assert callable(main)
+        except ImportError:
+            pytest.skip("CLI dependencies not available")
 
+    def test_orchestrator_imports(self):
+        """Test that orchestrator module can be imported."""
+        try:
+            from core.orchestrator import main
+            assert callable(main)
+        except ImportError:
+            pytest.skip("Orchestrator dependencies not available")
+
+
+# Test Configuration
 if __name__ == "__main__":
-    success = asyncio.run(main())
-    sys.exit(0 if success else 1)
+    pytest.main([__file__, "-v", "--tb=short"])

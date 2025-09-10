@@ -4,9 +4,20 @@ import logging
 from datetime import date, datetime
 from typing import List, Optional
 import httpx
-from models.schemas import WeatherForecast
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+class WeatherForecast(BaseModel):
+    """Weather forecast data from Open-Meteo API."""
+    date: date
+    temperature_2m_max: float
+    temperature_2m_min: float
+    precipitation_sum: float
+    snowfall_sum: float
+    wind_speed_10m_max: float
+    freezing_level: float
+    source_id: str = "open_meteo"
 
 async def get_forecast(latitude: float, longitude: float, start_date: date, end_date: date) -> List[WeatherForecast]:
     """Get weather forecast from Open-Meteo API.

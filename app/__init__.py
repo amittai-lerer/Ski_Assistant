@@ -29,7 +29,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from core.orchestrator import run
+# from core.orchestrator import run  # Commented out due to missing dependencies
 from config.settings import OPENAI_API_KEY, GEOAPIFY_API_KEY
 
 async def test_basic_flow():

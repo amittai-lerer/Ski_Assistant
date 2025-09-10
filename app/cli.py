@@ -30,8 +30,17 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
-from core.orchestrator import run
-from core.memory import load_last_plan, get_plan_info
+# Import the main reasoning function directly
+from core.reasoning import llm_with_tools
+
+# Fallback implementations for removed memory functionality
+def load_last_plan():
+    """Fallback: No plan persistence implemented."""
+    return None
+
+def get_plan_info():
+    """Fallback: No plan information available."""
+    return "No plan information available"
 
 # Configure logging (suppress HTTP request logs)
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -172,7 +181,7 @@ async def process_assistant_response(user_input: str, context: Dict[str, Any]) -
         Assistant's response text
     """
     try:
-        result = await run(user_input, context)
+        result = await llm_with_tools(user_input, context)
         return result if result else "[dim]I understood your request, but don't have a response ready. Could you rephrase?[/dim]"
     except Exception as e:
         logger.error(f"Error processing assistant response: {e}")
