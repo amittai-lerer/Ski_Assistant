@@ -30,6 +30,14 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
+# Load environment variables FIRST before any imports that use them
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, continue without it
+    pass
+
 # Import the main reasoning function directly
 from core.reasoning import llm_with_tools
 
@@ -181,7 +189,7 @@ async def process_assistant_response(user_input: str, context: Dict[str, Any]) -
         Assistant's response text
     """
     try:
-        result = await llm_with_tools(user_input, context)
+        result = await llm_with_tools(user_input, context['conversation_history'])
         return result if result else "[dim]I understood your request, but don't have a response ready. Could you rephrase?[/dim]"
     except Exception as e:
         logger.error(f"Error processing assistant response: {e}")

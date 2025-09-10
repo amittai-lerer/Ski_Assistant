@@ -15,7 +15,44 @@ Interview Notes:
 - Easy to test with different configurations
 """
 
+import os
 from typing import Dict, Any, List
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, continue without it
+    pass
+
+# ============================================================================
+# Environment Variable Loading
+# ============================================================================
+
+def _get_env_var(name: str, default: str = "") -> str:
+    """Get environment variable with optional default."""
+    return os.getenv(name, default)
+
+# API Keys (loaded from environment variables)
+OPENAI_API_KEY = _get_env_var("OPENAI_API_KEY")
+GEOAPIFY_API_KEY = _get_env_var("GEOAPIFY_API_KEY")
+RAPIDAPI_KEY = _get_env_var("RAPIDAPI_KEY")
+
+# Validate required API keys (allow dummy values for testing)
+def _validate_api_key(key: str, name: str) -> None:
+    """Validate API key is not empty and not obviously dummy."""
+    if not key or key.strip() == "":
+        raise ValueError(f"{name} environment variable is required")
+    if key.startswith("sk-your-") or key.startswith("your-") or key.startswith("dummy"):
+        # Allow dummy keys for testing, but warn
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Using dummy {name} - replace with real API key for production")
+
+_validate_api_key(OPENAI_API_KEY, "OPENAI_API_KEY")
+_validate_api_key(GEOAPIFY_API_KEY, "GEOAPIFY_API_KEY")
+_validate_api_key(RAPIDAPI_KEY, "RAPIDAPI_KEY")
 
 # ============================================================================
 # LLM Configuration
@@ -76,3 +113,10 @@ ENABLE_ADVANCED_LOGGING = False
 
 ENABLE_TOOL_FALLBACKS = True
 """Enable automatic fallback to alternative tools when primary fails."""
+
+# ============================================================================
+# Timeout Configuration
+# ============================================================================
+
+TIMEOUT_S = 30
+"""Default timeout for API requests in seconds."""

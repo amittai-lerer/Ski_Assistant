@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import httpx
-from config.settings import RAPIDAPI_KEY, TIMEOUT_S
+from core.config import RAPIDAPI_KEY, TIMEOUT_S
 
 logger = logging.getLogger(__name__)
 

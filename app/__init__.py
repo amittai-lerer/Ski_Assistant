@@ -29,8 +29,9 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# from core.orchestrator import run  # Commented out due to missing dependencies
-from config.settings import OPENAI_API_KEY, GEOAPIFY_API_KEY
+# Import from the correct config module
+from core.config import OPENAI_API_KEY, GEOAPIFY_API_KEY, RAPIDAPI_KEY
+from core.reasoning import llm_with_tools
 
 async def test_basic_flow():
     """Test the basic orchestration flow."""
@@ -49,7 +50,7 @@ async def test_basic_flow():
     
     try:
         print("\n🚀 Running orchestration...")
-        result = await run("", ctx)
+        result = await llm_with_tools("Tell me about Lake Tahoe ski resorts")
         print("✅ Success!")
         print(f"Result length: {len(result)} characters")
         print(f"First 200 chars: {result[:200]}...")

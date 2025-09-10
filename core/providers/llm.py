@@ -18,7 +18,7 @@ Interview Notes:
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 import openai
-from config.settings import OPENAI_API_KEY
+from core.config import OPENAI_API_KEY
 
 class LLMProvider(ABC):
     """

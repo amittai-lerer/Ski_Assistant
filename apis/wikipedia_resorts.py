@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any
 
 import httpx
-from config.settings import TIMEOUT_S
+from core.config import TIMEOUT_S
 
 logger = logging.getLogger(__name__)
 
