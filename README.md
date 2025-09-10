@@ -13,14 +13,11 @@
 The SkiTrip Assistant is an intelligent conversational AI that helps users plan ski vacations through natural language interactions. It integrates multiple external APIs to provide accurate, real-time information about ski resorts, weather conditions, and trip planning.
 
 ### **Key Capabilities**
-- ** Multi-turn Conversations**: Maintains context across interactions for natural dialogue
-
+- **Multi-turn Conversations**: Maintains context across interactions for natural dialogue
 - **Intelligent Query Processing**: Handles resort information, trip planning, and weather queries
-
 - **Real-time Data Integration**: Combines data from 4 external APIs (Geoapify, Open-Meteo, SkiAPI, Wikipedia)
-
+- **Dual Interface Support**: Available as both CLI and web interface (Streamlit)
 - **Hallucination Prevention**: Multi-layer validation ensures factual responses
-
 - **Fallback Mechanisms**: Automatic API switching when services are unavailable
 
 ## 🚀 **QUICK START**
